@@ -1,22 +1,18 @@
 import streamlit as st
 import pandas as pd
 
-# 1. Konfigurasi Tampilan Modern
 st.set_page_config(page_title="MTL Hauling Dashboard", layout="wide")
 
-# Link data kamu (Link CSV Google Sheets)
+# Link CSV Google Sheets kamu
 CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTsBRvf_sGqgV0e3tbSxxakUfwicBDolwJnG8myK_Ss_SjLG4i0ISy8rjBAR-C3l_aVFRfyIwR9WoDY/pub?gid=528195320&single=true&output=csv"
 
 @st.cache_data(ttl=10)
 def fetch_data():
     df = pd.read_csv(CSV_URL)
-    # Bersihkan nama kolom dari spasi dan jadikan huruf besar
+    # Bersihkan nama kolom: hapus spasi di awal/akhir dan jadikan HURUF BESAR
     df.columns = [str(c).strip().upper() for c in df.columns]
-    # Buang kolom yang tidak perlu (Unnamed)
-    df = df.loc[:, ~df.columns.str.contains('^UNNAMED')]
     return df
 
-# CSS untuk Dashboard Gelap
 st.markdown("""
     <style>
     [data-testid="stAppViewContainer"] { background-color: #0e1117; color: white; }
@@ -30,32 +26,32 @@ st.markdown("""
 try:
     df = fetch_data()
     st.title("🚜 MTL HAULING MONITORING")
-    
-    # Hitung angka utama
-    df["TONASE"] = pd.to_numeric(df["TONASE"], errors='coerce').fillna(0)
-    df["RITASE"] = pd.to_numeric(df["RITASE"], errors='coerce').fillna(0)
-    
-    total_tonase = df["TONASE"].sum()
-    total_ritase = df["RITASE"].sum()
-    unit_running = len(df[df["STATUS"].str.contains("RUNNING", na=False, case=False)])
 
-    # Layout Kotak Metrik
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.markdown(f'<div class="metric-card"><div class="lbl">TOTAL TONASE</div><div class="val">{total_tonase:,.0f}</div></div>', unsafe_allow_html=True)
-    with col2:
-        st.markdown(f'<div class="metric-card"><div class="lbl">TOTAL RITASE</div><div class="val">{total_ritase:,.0f}</div></div>', unsafe_allow_html=True)
-    with col3:
-        st.markdown(f'<div class="metric-card"><div class="lbl">UNIT RUNNING</div><div class="val">{unit_running}</div></div>', unsafe_allow_html=True)
+    # CARI KOLOM SECARA OTOMATIS (Biar ga error nama kolom)
+    col_ton = [c for c in df.columns if 'TON' in c][0] if [c for c in df.columns if 'TON' in c] else None
+    col_rit = [c for c in df.columns if 'RIT' in c][0] if [c for c in df.columns if 'RIT' in c] else None
+    col_sts = [c for c in df.columns if 'STAT' in c][0] if [c for c in df.columns if 'STAT' in c] else None
+
+    # Hitung Angka
+    val_ton = pd.to_numeric(df[col_ton], errors='coerce').sum() if col_ton else 0
+    val_rit = pd.to_numeric(df[col_rit], errors='coerce').sum() if col_rit else 0
+    val_run = len(df[df[col_sts].str.contains("RUN", na=False, case=False)]) if col_sts else 0
+
+    # Tampilkan Kartu Metrik
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.markdown(f'<div class="metric-card"><div class="lbl">TOTAL TONASE</div><div class="val">{val_ton:,.0f}</div></div>', unsafe_allow_html=True)
+    with c2:
+        st.markdown(f'<div class="metric-card"><div class="lbl">TOTAL RITASE</div><div class="val">{val_rit:,.0f}</div></div>', unsafe_allow_html=True)
+    with c3:
+        st.markdown(f'<div class="metric-card"><div class="lbl">UNIT RUNNING</div><div class="val">{val_run}</div></div>', unsafe_allow_html=True)
 
     st.write("---")
     st.subheader("📋 Detail Aktivitas")
     
-    # Tabel dengan highlight untuk Breakdown
-    def highlight_status(row):
-        return ['background-color: #442727' if 'BREAKDOWN' in str(row['STATUS']).upper() else '' for _ in row]
-
-    st.dataframe(df.style.apply(highlight_status, axis=1), use_container_width=True, height=500)
+    # Tabel
+    st.dataframe(df, use_container_width=True, height=500)
 
 except Exception as e:
-    st.error(f"Gagal memuat data: {e}")
+    st.error(f"Error: {e}")
+    st.write("Kolom yang terbaca di Excel kamu:", df.columns.tolist() if 'df' in locals() else "Data tidak terbaca")
