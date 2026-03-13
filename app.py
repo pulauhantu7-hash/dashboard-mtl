@@ -8,9 +8,8 @@ CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTsBRvf_sGqgV0e3tbSxx
 
 @st.cache_data(ttl=10)
 def fetch_data():
+    # Membaca data tanpa header dulu karena di web terbaca COLUMN 1, dst
     df = pd.read_csv(CSV_URL)
-    # Bersihkan nama kolom: hapus spasi di awal/akhir dan jadikan HURUF BESAR
-    df.columns = [str(c).strip().upper() for c in df.columns]
     return df
 
 st.markdown("""
@@ -27,17 +26,22 @@ try:
     df = fetch_data()
     st.title("🚜 MTL HAULING MONITORING")
 
-    # CARI KOLOM SECARA OTOMATIS (Biar ga error nama kolom)
-    col_ton = [c for c in df.columns if 'TON' in c][0] if [c for c in df.columns if 'TON' in c] else None
-    col_rit = [c for c in df.columns if 'RIT' in c][0] if [c for c in df.columns if 'RIT' in c] else None
-    col_sts = [c for c in df.columns if 'STAT' in c][0] if [c for c in df.columns if 'STAT' in c] else None
+    # --- PEMETAAN KOLOM BERDASARKAN GAMBAR KAMU ---
+    # Berdasarkan screenshot: 
+    # COLUMN 1 = Tanggal/Jam, COLUMN 2 = Driver, COLUMN 3 = Unit, dst.
+    # Kita asumsikan Ritase ada di kolom ke-4 dan Tonase di kolom ke-6 (sesuaikan nomornya)
+    
+    # Kita ambil kolom berdasarkan urutan (index)
+    # df.iloc[:, 3] artinya kolom ke-4, df.iloc[:, 5] artinya kolom ke-6
+    ritase_col = pd.to_numeric(df.iloc[:, 3], errors='coerce').fillna(0)
+    tonase_col = pd.to_numeric(df.iloc[:, 5], errors='coerce').fillna(0)
+    
+    val_ton = tonase_col.sum()
+    val_rit = ritase_col.sum()
+    # Anggap unit running adalah total baris yang ada datanya
+    val_run = len(df[df.iloc[:, 2].notna()]) 
 
-    # Hitung Angka
-    val_ton = pd.to_numeric(df[col_ton], errors='coerce').sum() if col_ton else 0
-    val_rit = pd.to_numeric(df[col_rit], errors='coerce').sum() if col_rit else 0
-    val_run = len(df[df[col_sts].str.contains("RUN", na=False, case=False)]) if col_sts else 0
-
-    # Tampilkan Kartu Metrik
+    # --- TAMPILAN KOTAK METRIK ---
     c1, c2, c3 = st.columns(3)
     with c1:
         st.markdown(f'<div class="metric-card"><div class="lbl">TOTAL TONASE</div><div class="val">{val_ton:,.0f}</div></div>', unsafe_allow_html=True)
@@ -49,9 +53,10 @@ try:
     st.write("---")
     st.subheader("📋 Detail Aktivitas")
     
-    # Tabel
+    # Ganti nama kolom biar cantik di web
+    df.columns = ['JAM', 'DRIVER', 'UNIT', 'RITASE', 'TUJUAN', 'TONASE', 'DUMPING', 'STATUS'][:len(df.columns)]
+    
     st.dataframe(df, use_container_width=True, height=500)
 
 except Exception as e:
-    st.error(f"Error: {e}")
-    st.write("Kolom yang terbaca di Excel kamu:", df.columns.tolist() if 'df' in locals() else "Data tidak terbaca")
+    st.error(f"Sikit lagi Buts! Error: {e}")
